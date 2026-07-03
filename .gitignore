@@ -1,0 +1,19 @@
+node_modules/
+server/dist/
+client/dist/
+*.log
+.env
+.env.local
+.vercel
+.claude/
+
+# Reference/source documents (not needed by the app)
+*.docx
+*.xlsx
+*.xls
+*.pdf
+
+# Generated analysis artifacts
+server/src/data/
+server/src/*.json
+server/src/*.html

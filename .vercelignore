@@ -1,0 +1,7 @@
+*.docx
+*.xlsx
+server/dist
+client/dist
+server/src/data
+server/src/*.json
+plan.md
