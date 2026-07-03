@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "buildCommand": "npm run build:client",
   "outputDirectory": "client/dist",
   "installCommand": "npm install",
