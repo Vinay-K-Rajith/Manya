@@ -35,6 +35,18 @@ const QUESTIONNAIRES: QuestionnaireSpec[] = [
     name: 'Incline',
     file: 'Incline_26-039634_Questionnaire (Client  internal use)_v8 (Repaired).docx',
   },
+  {
+    name: 'Blaze',
+    file: 'Blaze_26-012605-01_RQ+MQ_Quant (Internal Client use only)_V2.docx',
+  },
+  {
+    name: 'Pure 2',
+    file: 'Pure 2_25-078284-01_Questionnaire (Client & internal use)_V3 2.docx',
+  },
+  {
+    name: 'Sakaar',
+    file: 'Sakaar_26-026309-01_Questionnaire (Internal and Client Use only) _V13.docx',
+  },
 ];
 
 type TitleSource = 'corpus' | 'heading' | 'pattern' | 'composer' | 'fallback' | 'empty';
@@ -122,9 +134,9 @@ function scoreQuality(
   if (t === 'Open end') return 'good';
 
   const words = t.split(/\s+/);
-  const badStarts = /^(please|which|what|how|could|mentioned|observation|activities|spend|content|places)$/i;
+  const badStarts = /^(please|which|what|how|could|mentioned|observation)$/i;
   const looksLikeFragment =
-    words.length > 7 ||
+    words.length > 8 ||
     badStarts.test(words[0]) ||
     /pick top|per option|slide \d/i.test(t) ||
     (words.length >= 4 && /^(you|your|the|that|this)$/i.test(words[0]));
@@ -238,7 +250,7 @@ async function main() {
   const root = path.resolve(__dirname, '../..');
   const allStats: { name: string; stats: ReturnType<typeof summarize> }[] = [];
 
-  console.log('TABLE TITLE QUALITY ANALYSIS — ALL 3 QUESTIONNAIRES');
+  console.log('TABLE TITLE QUALITY ANALYSIS — ALL 6 QUESTIONNAIRES');
   console.log(`Date: ${new Date().toISOString().slice(0, 10)}`);
 
   for (const spec of QUESTIONNAIRES) {
@@ -258,9 +270,10 @@ async function main() {
   console.log('OVERALL SUMMARY');
   console.log(`${'='.repeat(72)}`);
   for (const { name, stats } of allStats) {
-    const label = name.includes('Incline')
-      ? `${stats.verified}/${stats.total - stats.empty} est. good+fair`
-      : `${stats.verified}/${stats.inAp} AP TabSpec match`;
+    const hasAp = !!QUESTIONNAIRES.find((q) => q.name === name)?.apFile;
+    const label = hasAp
+      ? `${stats.verified}/${stats.inAp} AP TabSpec match`
+      : `${stats.verified}/${stats.total - stats.empty} est. good+fair`;
     console.log(`  ${name.padEnd(22)} ${label}`);
   }
 }

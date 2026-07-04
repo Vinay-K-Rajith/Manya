@@ -12,7 +12,7 @@ const PIPE_RE = /<[^>]+>/g;
 const MAX_TITLE_WORDS = 15;
 
 const TRAILING_CLAUSE_RE =
-  /\b(?:when you|while (?:purchasing|buying)|as part of your|in order to|so that|if you|that you|who you|where you|because you|decide to buy|please select(?: all)?|pick your top|per option|slide \d+|what usually makes|think of brands).*$/i;
+  /\b(?:when you|while (?:purchasing|buying)|as part of your|in order to|so that|if you|that you|who you|where you|because you|decide to buy|(?:please\s+)?select(?:\s+all)?|pick your top|per option|slide \d+|what usually makes|think of brands).*$/i;
 
 const QUESTION_PREFIXES = [
   /^\s*which\s+of\s+the\s+following\s+best\s+describes\s+(?:how\s+you\s+)?(?:your\s+)?/i,
@@ -20,12 +20,27 @@ const QUESTION_PREFIXES = [
   /^\s*which\s+of\s+the\s+following\s+/i,
   /^\s*which\s+(?:tech\s+|sports\s+)?(?:brands|stores|platforms|items|activities)\s+(?:do\s+you\s+|are\s+you\s+|typically\s+)?/i,
   /^\s*which\s+of\s+these\s+/i,
-  /^\s*what\s+are\s+the\s+(?:main\s+|key\s+|top\s+\d+\s+)?(?:reasons\s+|factors\s+|brands\s+)?/i,
-  /^\s*what\s+(?:is|are)\s+(?:your|the)\s+/i,
+  /^\s*what\s+(?:are|were)\s+the\s+(?:main\s+|key\s+|top\s+\d+\s+)?(?:reasons\s+|factors\s+|brands\s+)?/i,
+  /^\s*what\s+(?:all\s+)?(?:is|are|was|were|would|did|do|does|will|can|could|should|makes?|triggered|exactly)\s+(?:your\s+|the\s+|you\s+)?/i,
+  /^\s*roughly\s+how\s+(?:much|many)\s+/i,
+  /^\s*which\s+(?:brands?|products?|items?|services?)\s+(?:would|do|did|are)\s+you\s+/i,
   /^\s*what\s+kind\s+of\s+/i,
   /^\s*what\s+type\s+of\s+/i,
   /^\s*on\s+what\s+activities\s+do\s+you\s+typically\s+/i,
-  /^\s*please\s+(?:select|tell|let\s+me\s+know|indicate|look\s+at[^\w]+and\s+tell)\s+(?:me\s+|us\s+)?(?:what\s+(?:is|are)\s+)?(?:the\s+|your\s+)?/i,
+  /^\s*(?:please\s+)?(?:select|tell|let\s+me\s+know|indicate|look\s+at[^\w]+and\s+tell)\s+(?:me\s+|us\s+)?(?:what\s+(?:is|are)\s+)?(?:the\s+|your\s+)?/i,
+  /^\s*(?:please\s+)?(?:look\s+at\s+this\s+(?:card|screen)\s+and\s+tell\s+me\s+(?:who\s+all\s+)?|show\s+screen\s+please\s+look\s+at\s+this\s+screen\s+and\s+tell\s+me\s+)/i,
+  /^\s*(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:kindly\s+)?tell\s+me(?:[^,:]*[,:])?\s+(?:something\s+about\s+)?(?:the\s+)?/i,
+  /^\s*we\s+would\s+like\s+your\s+opinion\s+on\s+(?:various\s+(?:brands|options)\s+which\s+provide\s+)?/i,
+  /^\s*(?:based\s+on\s+your\s+own\s+experience\s+(?:with[^,]+)?,\s*)/i,
+  /^\s*out\s+of\s+(?:all\s+)?(?:the|these)\s+brands(?:[^,]+)?,\s*/i,
+  /^\s*from\s+the\s+list\s+of\s+(?:sources|factors)(?:[^,]+)?,\s*/i,
+  /^\s*you\s+will\s+have\s+to\s+select\s+the\s+option\s+that\s+tells\s+us\s+/i,
+  /^\s*what\s+all\s+(?:other\s+)?(?:brands\s+)?did\s+you\s+(?:consider)?\s*/i,
+  /^\s*(?:from\s+)?where\s+did\s+you\s+(?:come\s+across|purchase|buy)\s+/i,
+  /^\s*(?:how\s+much|what\s+amount)\s+(?:did\s+you\s+pay|do\s+you\s+spend)\s+(?:for|on)\s+/i,
+  /^\s*when\s+did\s+you\s+(?:purchase|buy)\s+/i,
+  /^\s*(?:which|what)\s+(?:of\s+the\s+following\s+)?(?:appliances|products|items|devices|brands)\s+(?:do\s+you\s+)?(?:have|own|use|consider).*/i,
+  /^\s*where\s+did\s+you\s+(?:come\s+across\s+)?/i,
   /^\s*how\s+(?:important|satisfied|aware|familiar|likely|influential|often|frequently|much)\s+(?:is|are|do|would|was|were)\s+/i,
   /^\s*in\s+your\s+observation,?\s*/i,
   /^\s*thinking\s+about\s+(?:your\s+)?(?:most\s+recent\s+)?/i,
@@ -62,6 +77,13 @@ export type QuestionArchetype =
   | 'listing'
   | 'familiarity'
   | 'likelihood'
+  | 'opinion'
+  | 'challenges'
+  | 'location'
+  | 'amount'
+  | 'timing'
+  | 'brand_tracking'
+  | 'ownership'
   | 'unknown';
 
 type ArchetypeRule = { archetype: QuestionArchetype; re: RegExp };
@@ -78,11 +100,18 @@ const ARCHETYPE_RULES: ArchetypeRule[] = [
   { archetype: 'influence', re: /how influential|influence your|influence on/i },
   { archetype: 'likelihood', re: /how likely|willing to pay|willingness/i },
   { archetype: 'frequency', re: /how often|how frequently|how many times/i },
-  { archetype: 'reasons', re: /why (?:do|did) you|reasons (?:for|you)|main reason/i },
-  { archetype: 'preference', re: /prefer|preference|most often|enjoy (?:the\s+)?most|favourite|favorite/i },
-  { archetype: 'behavior', re: /have you (?:ever\s+)?(?:purchased|used|tried|visited)|do you (?:currently\s+)?(?:have|own|use|purchase)/i },
+  { archetype: 'reasons', re: /why (?:do|did) you|reasons (?:for|you)|main reason|what (?:would|did)?\s*make you|what triggered/i },
+  { archetype: 'preference', re: /prefer|preference|most often|enjoy (?:the\s+)?most|favourite|favorite|would you consider/i },
+  { archetype: 'brand_tracking', re: /brands?.*(?:currently|previously|consider|used|aware|heard|switched|interacted)/i },
+  { archetype: 'behavior', re: /have you (?:ever\s+)?(?:purchased|used|tried|visited)|do you (?:currently\s+)?(?:have|own|use|purchase)|is currently being used|was previously used/i },
   { archetype: 'demographic', re: /what is your|please select your|marital status|family status|household|occupation|education|employment status|age in completed/i },
-  { archetype: 'listing', re: /which (?:of the following|platforms|stores|brands|types|kind)/i },
+  { archetype: 'opinion', re: /opinion (?:on|about)/i },
+  { archetype: 'challenges', re: /what challenges/i },
+  { archetype: 'location', re: /where did you|from where/i },
+  { archetype: 'amount', re: /how much did you|spend on|price paid/i },
+  { archetype: 'timing', re: /when did you/i },
+  { archetype: 'ownership', re: /appliances do you have|do you own|do you have at your home/i },
+  { archetype: 'listing', re: /which (?:of the following|platforms|stores|brands|types|kind|celebrities)/i },
 ];
 
 export function detectArchetype(text: string): QuestionArchetype {
@@ -167,7 +196,7 @@ export function extractKeyphrase(text: string): string {
 
 function composeFromArchetype(archetype: QuestionArchetype, text: string): string | null {
   const topic = trimTopic(extractKeyphrase(text));
-  if (!topic && archetype !== 'open_end' && archetype !== 'instruction') return null;
+  if (!topic && !['open_end', 'instruction', 'brand_tracking', 'location', 'amount', 'timing', 'ownership', 'challenges', 'behavior'].includes(archetype)) return null;
 
   switch (archetype) {
     case 'instruction':
@@ -200,7 +229,6 @@ function composeFromArchetype(archetype: QuestionArchetype, text: string): strin
       if (/spend your day|activities.*day/i.test(text)) return 'Daily activities';
       if (/hang out|hangout/i.test(text)) return 'Hangout places';
       if (/hobbies|interests/i.test(text)) return 'Main hobbies';
-      if (/content.*create/i.test(text)) return 'Content creation';
       return topic.match(/prefer|favourite|favorite/)
         ? capTitle(`Preferred ${toTitlePhrase(topic.replace(/\bprefer(red)?\b/i, '').trim())}`)
         : capTitle(`${toTitlePhrase(topic)} preference`);
@@ -225,6 +253,27 @@ function composeFromArchetype(archetype: QuestionArchetype, text: string): strin
       if (/behave when buying tech|buying tech products/i.test(text)) return 'Tech purchase behaviour';
       if (/stores.*enjoy visiting/i.test(text)) return 'Preferred stores';
       return toTitlePhrase(topic);
+    case 'opinion':
+      return capTitle(`Opinion on ${toTitlePhrase(topic.replace(/opinion (?:on|about)\s*/i, ''))}`);
+    case 'challenges':
+      return capTitle(`Challenges with ${toTitlePhrase(topic.replace(/what challenges\s*(?:do you typically face with\s*)?/i, ''))}`);
+    case 'location':
+      return capTitle(topic ? `Location of ${toTitlePhrase(topic)}` : 'Location');
+    case 'amount':
+      return capTitle(topic ? `Amount paid for ${toTitlePhrase(topic)}` : 'Amount paid');
+    case 'timing':
+      return capTitle(topic ? `Timing of ${toTitlePhrase(topic)}` : 'Timing of purchase');
+    case 'ownership':
+      return capTitle(topic ? `${toTitlePhrase(topic)} owned` : 'Ownership');
+    case 'brand_tracking':
+      if (/currently being used|current.*brand/i.test(text)) return 'Current brand used';
+      if (/previously used/i.test(text)) return 'Previous brand used';
+      if (/brands.*consider/i.test(text)) return 'Brands considered';
+      if (/brands.*used/i.test(text)) return 'Brands used';
+      if (/brands.*aware|brands.*heard/i.test(text)) return 'Brands aware of';
+      if (/switched.*brand/i.test(text)) return 'Brand switched';
+      if (/interacted with each brand/i.test(text)) return 'Brand interaction';
+      return 'Brand metrics';
     default:
       return topic ? toTitlePhrase(topic) : null;
   }
@@ -241,6 +290,9 @@ export function composeTableTitle(text: string): string | null {
   }
   if (/spend time on work/i.test(text)) {
     return 'Work activity type';
+  }
+  if (/content.*create/i.test(text)) {
+    return 'Content creation';
   }
   if (/instagram.recommended|trending places/i.test(text)) {
     return 'Trending places visited';

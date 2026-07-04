@@ -80,8 +80,9 @@ const QUESTION_PATTERNS: PatternRule[] = [
   { re: /please select your gender/i, title: 'Gender' },
   { re: /what is your age in completed years/i, title: 'Age' },
   { re: /employed in any of the following occupations/i, title: 'Occupation check' },
-  { re: /market research surveys/i, title: 'MR participation' },
-  { re: /highest level of education of the chief wage earner/i, title: 'CWE education' },
+  { re: /work in any of these occupations or professions/i, title: 'Occupation check' },
+  { re: /market research survey/i, title: 'MR participation' },
+  { re: /highest level.*chief wage earner/i, title: 'CWE education' },
   { re: /best describes your current occupation/i, title: 'Current occupation' },
   { re: /best describes your role in this jewellery store/i, title: 'Role in store' },
   { re: /monthly household income/i, title: 'Monthly household income' },
@@ -219,6 +220,68 @@ const QUESTION_PATTERNS: PatternRule[] = [
   { re: /occasions do consumers most commonly request customised gold\/silver/i, title: 'Customization occasions' },
   { re: /consumers are shifting to digital gold/i, title: 'digital gold shift reasons' },
   { re: /top players in digital gold or online bullion/i, title: 'Top players in digital gold' },
+
+  // Tech / Device tracking
+  { re: /stream or field.*studying/i, title: 'Stream or field of study' },
+  { re: /smartphone brand do you currently use/i, title: 'Current smartphone brand' },
+  { re: /how much did you spend on your current smartphone/i, title: 'Spend on current smartphone' },
+  { re: /how often do you upgrade\/change your phone/i, title: 'Phone upgrade frequency' },
+  { re: /when did you buy your current personal computer/i, title: 'Time of PC/laptop purchase' },
+  { re: /level of involvement in the (?:final )?decision/i, title: 'Level of involvement in decision making' },
+  { re: /involvement in the purchase/i, title: 'Involvement in purchase' },
+  { re: /brand is your current personal computer/i, title: 'Current PC/laptop brand' },
+  { re: /brands would you consider for your next purchase/i, title: 'Brands considered for next purchase' },
+  { re: /triggered you to start thinking about buying a (?:laptop|pc|smartphone)/i, title: 'Triggers for buying' },
+  { re: /how relevant do you feel.*is as a smartphone company/i, title: 'Relevance of brand' },
+  { re: /how close do you feel to.*as a smartphone company/i, title: 'Closeness to brand' },
+
+  // Pure 2 (Househelp)
+  { re: /househelp \/ maids do you currently/i, title: 'Number of househelp employed' },
+  { re: /how often does each househelp provide their services/i, title: 'Househelp service frequency' },
+  { re: /monthly household spend on all househelp/i, title: 'Spend on househelp' },
+  { re: /when your househelp is unavailable, how does your household/i, title: 'Management without househelp' },
+  { re: /appliances do you have at your home/i, title: 'Appliances owned' },
+  { re: /type of house do you currently live in/i, title: 'Type of house' },
+  { re: /cleaning work does the maid.*do/i, title: 'Cleaning work by maid' },
+  { re: /reasons or concerns that prevent you from using an instant househelp/i, title: 'Reasons preventing instant househelp' },
+  { re: /brands of ro water purifier have you heard/i, title: 'Water purifier brands heard of' },
+  { re: /opinion about the following brands/i, title: 'Opinion on brands' },
+  { re: /where did you come across this ad/i, title: 'Ad source' },
+  { re: /celebrities can you recall seeing/i, title: 'Celebrities recalled' },
+  { re: /now recall the name of the celebrity/i, title: 'Celebrity name recall' },
+  { re: /what is the ad trying to convey/i, title: 'Ad message conveyed' },
+  { re: /this ad made you feel/i, title: 'Feeling from ad' },
+
+  // Sakaar
+  { re: /willing to participate in the survey/i, title: 'Willingness to participate' },
+  { re: /person who makes the biggest contribution/i, title: 'Chief wage earner' },
+  { re: /statement describes your current occupational/i, title: 'Current occupation' },
+  { re: /who all do the house cleaning like mopping/i, title: 'House cleaning responsibility' },
+  { re: /products do you use for cleaning your house/i, title: 'Cleaning products used' },
+  { re: /brands of drain cleaners have ever been used/i, title: 'Drain cleaner brands used' },
+  { re: /what all other brands did you consider/i, title: 'Other brands considered' },
+  { re: /what brands have been used in last 3 months/i, title: 'Brands used in last 3 months' },
+  { re: /which brand is currently being used/i, title: 'Current brand used' },
+  { re: /which brand was previously used/i, title: 'Previous brand used' },
+  { re: /switched your most often used brand/i, title: 'Brand switched in last 3 months' },
+  { re: /reason for switching the brand/i, title: 'Reasons for brand switch' },
+  { re: /sources of information helped you in considering/i, title: 'Sources of information' },
+  { re: /problems.*faced while using drain cleaners/i, title: 'Problems faced using drain cleaners' },
+  { re: /call professional cleaning experts/i, title: 'Use of professional cleaning experts' },
+  { re: /whom do you usually call for these cleaning services/i, title: 'Professional cleaning service providers' },
+  { re: /how often do you use a drain cleaner/i, title: 'Frequency of drain cleaner use' },
+  { re: /channel you prefer the most to purchase drain cleaners/i, title: 'Preferred purchase channel' },
+  
+  // Blaze
+  { re: /how much did you pay for your most frequently/i, title: 'Amount paid' },
+  { re: /from where did you purchase your most/i, title: 'Purchase location' },
+  { re: /how you have interacted with each brand/i, title: 'Brand interaction' },
+  { re: /all the brands considered while purchasing/i, title: 'Brands considered' },
+  { re: /model which you purchased/i, title: 'Purchased model' },
+  { re: /activities did you do before purchasing/i, title: 'Activities before purchase' },
+  { re: /did not make it to your considered smartphone/i, title: 'Reasons not considered' },
+  { re: /which smartphones do you use currently/i, title: 'Current smartphone' },
+  { re: /when did you purchase your most recently/i, title: 'Time of recent purchase' },
 
   // Buyback block
   { re: /guaranteed buyback promise from the brand/i, title: 'Importance of guaranteed buyback promise' },
@@ -433,11 +496,11 @@ export function generateTableTitle(input: TableTitleInput): string {
     if (fromHeading) return fromHeading;
   }
 
-  const fromComposer = composeTableTitle(qText);
-  if (fromComposer) return fromComposer;
-
   const fromPattern = titleFromPatterns(qText, id);
   if (fromPattern) return fromPattern;
+
+  const fromComposer = composeTableTitle(qText);
+  if (fromComposer) return fromComposer;
 
   return keywordFallback(qText || heading);
 }

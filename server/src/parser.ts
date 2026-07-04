@@ -23,7 +23,7 @@ const Q_CELL_RE = /^\s*([A-Z]+\d+[a-z]*)\s*$/i;
 const SECTION_RE = /^\s*(SECTION\s+\d+.*|SECTION\s+[A-Z].*)/i;
 
 const CODING_RE = /(SINGLE\s+CODING|MULTIPLE\s+CODING|RECORD\s+VERBATIM|RANKING|GRID|SINGLE\s+MULTIPLE\s+CODING|SINGLE\s+MULTIPLE\s+CODING\s*,\s*RANDOMIZE)/i;
-const FILTER_RE = /(ASK\s+ALL|ASK\s+THOSE\s+[^.]*|ASK\s+IF\s+[^.]*|FILTER\s*:?\s*[^.]*)/i;
+const FILTER_RE = /(ASK\s+ALL|(?:ASK\s+THOSE|ASK\s+IF|FILTER\s*:?)\s+.*?(?=\.|\?|\n|\r|\b(?:Which|What|How|Please|Why|Do|Are|Is|Record|Show|Rank|Select|Tell)\b|\]|\)|$))/i;
 
 
 export { generateTableTitle, cleanTableTitle } from './tableTitleEngine';
