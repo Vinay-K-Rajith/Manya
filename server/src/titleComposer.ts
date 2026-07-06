@@ -29,7 +29,7 @@ const QUESTION_PREFIXES = [
   /^\s*on\s+what\s+activities\s+do\s+you\s+typically\s+/i,
   /^\s*(?:please\s+)?(?:select|tell|let\s+me\s+know|indicate|look\s+at[^\w]+and\s+tell)\s+(?:me\s+|us\s+)?(?:what\s+(?:is|are)\s+)?(?:the\s+|your\s+)?/i,
   /^\s*(?:please\s+)?(?:look\s+at\s+this\s+(?:card|screen)\s+and\s+tell\s+me\s+(?:who\s+all\s+)?|show\s+screen\s+please\s+look\s+at\s+this\s+screen\s+and\s+tell\s+me\s+)/i,
-  /^\s*(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:kindly\s+)?tell\s+me(?:[^,:]*[,:])?\s+(?:something\s+about\s+)?(?:the\s+)?/i,
+  /^\s*(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:kindly\s+)?(?:tell|let)\s+(?:me|us)?(?:[^,:]*[,:])?\s+(?:something\s+about\s+)?(?:the\s+|which\s+|what\s+|about\s+|who\s+)?/i,
   /^\s*we\s+would\s+like\s+your\s+opinion\s+on\s+(?:various\s+(?:brands|options)\s+which\s+provide\s+)?/i,
   /^\s*(?:based\s+on\s+your\s+own\s+experience\s+(?:with[^,]+)?,\s*)/i,
   /^\s*out\s+of\s+(?:all\s+)?(?:the|these)\s+brands(?:[^,]+)?,\s*/i,
@@ -58,6 +58,8 @@ const QUESTION_PREFIXES = [
   /^\s*why\s+do\s+you\s+/i,
   /^\s*before\s+today,?\s*/i,
   /^\s*as\s+you\s+are\s+aware\s+of\s+/i,
+  /^\s*what\s+(?:is|are)\s+the\s+key\s+/i,
+  /^\s*(?:what\s+is\s+)?(?:your\s+)?current\s+role\s+in\s+work\s+(?:or\s+ownership\s+of\s+the\s+shop)?/i,
 ];
 
 export type QuestionArchetype =
@@ -103,12 +105,12 @@ const ARCHETYPE_RULES: ArchetypeRule[] = [
   { archetype: 'reasons', re: /why (?:do|did) you|reasons (?:for|you)|main reason|what (?:would|did)?\s*make you|what triggered/i },
   { archetype: 'preference', re: /prefer|preference|most often|enjoy (?:the\s+)?most|favourite|favorite|would you consider/i },
   { archetype: 'brand_tracking', re: /brands?.*(?:currently|previously|consider|used|aware|heard|switched|interacted)/i },
-  { archetype: 'behavior', re: /have you (?:ever\s+)?(?:purchased|used|tried|visited)|do you (?:currently\s+)?(?:have|own|use|purchase)|is currently being used|was previously used/i },
-  { archetype: 'demographic', re: /what is your|please select your|marital status|family status|household|occupation|education|employment status|age in completed/i },
+  { archetype: 'behavior', re: /how many (?:years|cars|flights|trips|credit cards)|have you (?:ever\s+)?(?:purchased|used|tried|visited)|do you (?:currently\s+)?(?:have|own|use|purchase)|is currently being used|was previously used/i },
+  { archetype: 'demographic', re: /what is your|please select your|marital status|family status|household|occupation|education|employment status|age in completed|current role in work/i },
   { archetype: 'opinion', re: /opinion (?:on|about)/i },
-  { archetype: 'challenges', re: /what challenges/i },
+  { archetype: 'challenges', re: /what challenges|challenges you face/i },
   { archetype: 'location', re: /where did you|from where/i },
-  { archetype: 'amount', re: /how much did you|spend on|price paid/i },
+  { archetype: 'amount', re: /how much did you|spend on|price paid|how much do you spend/i },
   { archetype: 'timing', re: /when did you/i },
   { archetype: 'ownership', re: /appliances do you have|do you own|do you have at your home/i },
   { archetype: 'listing', re: /which (?:of the following|platforms|stores|brands|types|kind|celebrities)/i },
@@ -153,6 +155,8 @@ function preprocess(text: string): string {
     .replace(/\([^)]*pipe[^)]*\)/gi, ' ')
     .replace(/\(pipe[^)]*\)/gi, ' ')
     .replace(/\([^)]*\)/g, ' ')
+    .replace(/\[\s*(?:sc|mc|oe|ma|sa)\s*\]/gi, ' ')
+    .replace(/\b(?:sn|in|scripter(?:'s)? note|interviewer(?:'s)? note|interviewer instruction|scripter instruction|instruction|note)s?\s*:.*$/gi, '')
     .replace(/\b(?:single|multiple|record|ranking|grid)\s+coding\b.*/gi, '')
     .replace(/please select and rank[^.]*$/i, '')
     .replace(/\(.*?per option.*?\)/gi, '')
@@ -220,7 +224,7 @@ function composeFromArchetype(archetype: QuestionArchetype, text: string): strin
     case 'familiarity':
       return capTitle(`Familiarity with ${toTitlePhrase(topic)}`);
     case 'frequency':
-      return topic.includes('frequency') ? toTitlePhrase(topic) : capTitle(`${toTitlePhrase(topic)} frequency`);
+      return capTitle(`Frequency of ${toTitlePhrase(topic.replace(/.*how (?:often|frequently|many times)\s*(?:do|did)?\s*(?:you)?\s*/i, ''))}`);
     case 'reasons': {
       const clean = topic.replace(/^(?:for\s+)+/i, '').replace(/\bpipe\b.*$/i, '').trim();
       return capTitle(`Reasons for ${toTitlePhrase(clean)}`);
@@ -243,12 +247,12 @@ function composeFromArchetype(archetype: QuestionArchetype, text: string): strin
     case 'influence':
       return topic.includes('influence') ? toTitlePhrase(topic) : capTitle(`${toTitlePhrase(topic)} influence`);
     case 'likelihood':
-      return capTitle(`Willingness ${toTitlePhrase(topic)}`);
+      return capTitle(`Likelihood to ${toTitlePhrase(topic.replace(/how likely\s*(?:are you\s*)?(?:to)?/i, ''))}`);
     case 'behavior':
       if (/visited a physical store.*laptops|visited.*store.*research/i.test(text)) {
         return 'Store visit for research';
       }
-      return toTitlePhrase(topic);
+      return toTitlePhrase(topic.replace(/^(?:how\s+many\s+(?:years|cars|flights|trips|credit\s+cards)|do\s+you\s+(?:currently\s+)?(?:have|own|use|purchase)|have\s+you\s+(?:ever\s+)?(?:purchased|used|tried|visited))\s+/i, ''));
     case 'listing':
       if (/behave when buying tech|buying tech products/i.test(text)) return 'Tech purchase behaviour';
       if (/stores.*enjoy visiting/i.test(text)) return 'Preferred stores';
@@ -256,11 +260,11 @@ function composeFromArchetype(archetype: QuestionArchetype, text: string): strin
     case 'opinion':
       return capTitle(`Opinion on ${toTitlePhrase(topic.replace(/opinion (?:on|about)\s*/i, ''))}`);
     case 'challenges':
-      return capTitle(`Challenges with ${toTitlePhrase(topic.replace(/what challenges\s*(?:do you typically face with\s*)?/i, ''))}`);
+      return capTitle(`Challenges ${topic ? 'with ' + toTitlePhrase(topic.replace(/(?:what\s+)?challenges\s*(?:that\s+)?(?:do\s+you|you)?\s*(?:typically\s+)?face(?:d)?\s*(?:with\s*)?/i, '')) : ''}`);
     case 'location':
       return capTitle(topic ? `Location of ${toTitlePhrase(topic)}` : 'Location');
     case 'amount':
-      return capTitle(topic ? `Amount paid for ${toTitlePhrase(topic)}` : 'Amount paid');
+      return capTitle(`Amount spent on ${toTitlePhrase(topic.replace(/.*(?:how much did you(?: \w+)?|spend(?:s| on)?|price paid|how much do you spend(?: on)?)\s*/i, ''))}`);
     case 'timing':
       return capTitle(topic ? `Timing of ${toTitlePhrase(topic)}` : 'Timing of purchase');
     case 'ownership':

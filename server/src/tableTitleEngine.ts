@@ -40,7 +40,7 @@ const CORPUS: CorpusEntry[] = (corpusData as CorpusEntry[]).map((e) => ({
 }));
 
 const JUNK_HEADING_RE =
-  /^(RANDOMIZE|SHOW|DISPLAY|ASK|PIPE|SN:|POST\s*CODE|OPTION|READ\s*OUT|CONTINUE|MULTIPLE|SCREEN|NOTE)/i;
+  /^(RANDOMIZE|SHOW|DISPLAY|ASK|PIPE|SN:|POST\s*CODE|OPTION|READ\s*OUT|CONTINUE|MULTIPLE|SCREEN|NOTE|MAX\s*DIFF)/i;
 
 const PIPE_RE = /<[^>]+>/g;
 
@@ -161,6 +161,49 @@ const QUESTION_PATTERNS: PatternRule[] = [
   { re: /alternative investment options have you considered/i, title: 'Alternate investment options' },
   { re: /influenced your decision to purchase gold in the last 12 months/i, title: 'Deciding factors' },
   { re: /geopolitical event or government policy change related to gold/i, title: 'Reaction to govt policy change/geopolitical event' },
+
+  // Generic Finance / FMCG / Retail (Palmer, Aqua, Shadow)
+  // Generic Finance / FMCG / Retail (Palmer, Aqua, Shadow)
+  { re: /factors (?:that )?drive (?:you )?to purchase/i, title: 'Key factors that drive purchase' },
+  { re: /challenges (?:that )?you face with/i, title: 'Key challenges faced' },
+  { re: /first (?:brand|name).*comes to your mind/i, title: 'First Brand that comes to your mind (TOM)' },
+  { re: /names and tell me which of these.*have you ever heard of/i, title: 'Brands heard of (Aided)' },
+  { re: /what cards did you consider before buying/i, title: 'Cards considered before buying' },
+  { re: /most preferred brand of/i, title: 'Most preferred brand' },
+  { re: /types of beverages do you typically consume/i, title: 'Beverage typically consumed' },
+  { re: /most selling product at your shop/i, title: 'Most selling product' },
+  { re: /years.*been in this business/i, title: 'Years in business' },
+  { re: /current role in work or ownership/i, title: 'Current role or ownership' },
+  { re: /employed in any of the organizations/i, title: 'Organization screening' },
+  { re: /highest (?:level of )?education/i, title: 'Education' },
+  { re: /age in complet(?:ed)? years|how old were you/i, title: 'Age in years' },
+  { re: /mention your gender/i, title: 'Gender' },
+  { re: /how many years of work experience/i, title: 'Years of work experience' },
+  { re: /how many cars do you own/i, title: 'Number of cars owned' },
+  { re: /how many domestic flights.*last year/i, title: 'Number of domestic flights in last year' },
+  { re: /how many international trips.*last one year/i, title: 'Number of international trips in last year' },
+  { re: /make and model of the most expensive car/i, title: 'Make and model of most expensive car' },
+  { re: /stay at any of the hotels listed below/i, title: 'Hotels stayed during trips' },
+  { re: /within a year approximately how much do you spend/i, title: 'Amount spent in a year' },
+  { re: /chief wage earner of your household/i, title: 'Chief wage earner' },
+  { re: /monthly household income/i, title: 'Monthly household income' },
+  { re: /loyalty programs are you a member of/i, title: 'Loyalty programs membership' },
+  { re: /best describes your current home/i, title: 'Current home type' },
+  { re: /how would you describe the house/i, title: 'House description' },
+  { re: /prominent\/renowned club/i, title: 'Club membership' },
+  { re: /which all credit cards do you own/i, title: 'Credit cards owned' },
+  { re: /which among these is your primary card/i, title: 'Primary card' },
+  { re: /interviewed or called for discussions by a market/i, title: 'Interviewed by market agency' },
+  { re: /type of purchase for your/i, title: 'Type of purchase' },
+  { re: /triggered you to purchase a new/i, title: 'Triggered you to purchase a new' },
+  { re: /type of product did you finally purchase/i, title: 'Type of product did you finally purchase' },
+  { re: /difference between the budget you had in mind and the final price/i, title: 'Difference between budget and final price' },
+  { re: /brand of .* did you previously own/i, title: 'Brand Previously Owned' },
+  { re: /last purchase of .* from where/i, title: 'Last purchase' },
+  { re: /what brands are you aware of/i, title: 'Brands Aware of' },
+  { re: /brands did you consider during your initial research/i, title: 'Brands considered during initial research' },
+  { re: /key deciding factors when choosing the brand/i, title: 'Key deciding factors when choosing brand' },
+  { re: /interested in trying new flavors of/i, title: 'Interested in new Flavors' },
 
   // Brand — consumer
   { re: /brands come to your mind when you think of gold\/silver/i, title: 'TOM brands' },

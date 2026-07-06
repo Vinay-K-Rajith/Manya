@@ -230,7 +230,7 @@ export async function parseDocx(docxBuffer: Buffer): Promise<QuestionnaireQuesti
         const firstRowCells = $(rows[0]).find('td').toArray().map(c => $(c).text().trim());
         const firstCell = firstRowCells[0];
         
-        const m = firstCell.match(Q_CELL_RE);
+        const m = firstCell ? firstCell.match(Q_CELL_RE) : null;
         if (m) {
           const qId = m[1].toUpperCase();
           let qTextFull = firstRowCells[1] || '';

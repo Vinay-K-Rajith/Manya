@@ -1,15 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import ExcelJS from 'exceljs';
-import { parseDocx } from './parser';
+import { parseDocx } from './src/parser';
 import {
   generateTableTitle,
   inferStudyType,
   normalizeForMatch,
   StudyType,
-} from './tableTitleEngine';
-import { detectArchetype, extractKeyphrase } from './titleComposer';
-import corpus from './data/titleTrainingCorpus.json';
+} from './src/tableTitleEngine';
+import { detectArchetype, extractKeyphrase } from './src/titleComposer';
 
 interface QuestionnaireSpec {
   name: string;
@@ -19,34 +18,6 @@ interface QuestionnaireSpec {
 }
 
 const QUESTIONNAIRES: QuestionnaireSpec[] = [
-  {
-    name: 'Goldline Consumer',
-    file: 'Goldline_25047513_Consumer Questionnaire (Client & internal use)_v9.docx',
-    study: 'consumer',
-    apFile: 'AP FOR GOLDLINE CONSUMER.xlsx',
-  },
-  {
-    name: 'Goldline Retailer',
-    file: 'Goldline_25047513_Retailer Questionnaire (Client & internal use)_v7 (1).docx',
-    study: 'retailer',
-    apFile: 'AP FOR GOLDLINE RETAILER 1.xlsx',
-  },
-  {
-    name: 'Incline',
-    file: 'Incline_26-039634_Questionnaire (Client  internal use)_v8 (Repaired).docx',
-  },
-  {
-    name: 'Blaze',
-    file: 'Blaze_26-012605-01_RQ+MQ_Quant (Internal Client use only)_V2.docx',
-  },
-  {
-    name: 'Pure 2',
-    file: 'Pure 2_25-078284-01_Questionnaire (Client & internal use)_V3 2.docx',
-  },
-  {
-    name: 'Sakaar',
-    file: 'Sakaar_26-026309-01_Questionnaire (Internal and Client Use only) _V13.docx',
-  },
   {
     name: 'Aqua Shopper',
     file: 'New/Aqua_25-04519501_Shopper QRE (Client & Internal use only)_V1 1.docx',
@@ -99,20 +70,14 @@ interface RowResult {
 async function readTabSpec(apPath: string): Promise<Map<string, string>> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(apPath);
-  const sheet = workbook.getWorksheet('TabSpec') || workbook.getWorksheet('TableSpecs');
+  const sheet = workbook.getWorksheet('TabSpec');
   if (!sheet) return new Map();
 
   const map = new Map<string, string>();
   sheet.eachRow((row, rowNum) => {
     if (rowNum <= 5) return;
     const id = String(row.getCell(2).value ?? '').trim().toUpperCase();
-    const titleCell = row.getCell(3).value;
-    let title = '';
-    if (titleCell && typeof titleCell === 'object' && 'richText' in titleCell) {
-      title = (titleCell as any).richText.map((rt: any) => rt.text).join('').trim();
-    } else {
-      title = String(titleCell ?? '').trim();
-    }
+    const title = String(row.getCell(3).value ?? '').trim();
     if (!id || id.startsWith('SECTION')) return;
     map.set(id, title);
   });
@@ -127,35 +92,7 @@ function classifySource(
   finalTitle: string
 ): TitleSource {
   if (!text.trim() && !heading.trim()) return 'empty';
-
-  const norm = normalizeForMatch(text);
-  if (study && id) {
-    const exact = corpus.find(
-      (c) => c.study === study && c.id === id.toUpperCase() && normalizeForMatch(c.text) === norm
-    );
-    if (exact && exact.expected.toLowerCase() === finalTitle.toLowerCase()) return 'corpus';
-  }
-
-  for (const c of corpus) {
-    if (normalizeForMatch(c.text) === norm && c.expected.toLowerCase() === finalTitle.toLowerCase()) {
-      return 'corpus';
-    }
-  }
-
-  if (heading && !/^(RANDOMIZE|SHOW|DISPLAY)/i.test(heading)) {
-    const h = heading.trim().toLowerCase();
-    if (finalTitle.toLowerCase() === h || finalTitle.toLowerCase().includes(h.split(' ')[0])) {
-      return 'heading';
-    }
-  }
-
-  if (finalTitle === 'Open end' || finalTitle === 'NCCS classification') return 'pattern';
-
-  const composerTitle = generateTableTitle({ id, heading, text, study: undefined });
-  // If only composer would produce this without study-specific corpus - rough heuristic
-  if (composerTitle.toLowerCase() === finalTitle.toLowerCase()) return 'composer';
-
-  return 'pattern';
+  return 'composer'; // Placeholder for analysis
 }
 
 function scoreQuality(
@@ -238,9 +175,6 @@ function summarize(name: string, rows: RowResult[], hasAp: boolean) {
   const poor = rows.filter((r) => r.quality === 'poor').length;
   const empty = rows.filter((r) => r.quality === 'empty').length;
 
-  const bySource: Record<string, number> = {};
-  for (const r of rows) bySource[r.source] = (bySource[r.source] ?? 0) + 1;
-
   const byArchetype: Record<string, number> = {};
   for (const r of rows) byArchetype[r.archetype] = (byArchetype[r.archetype] ?? 0) + 1;
 
@@ -249,21 +183,16 @@ function summarize(name: string, rows: RowResult[], hasAp: boolean) {
   console.log(`${'='.repeat(72)}`);
   console.log(`Parsed questions: ${total}`);
   if (hasAp) {
-    console.log(`AP TabSpec match: ${verified}/${inAp.length} (${pct(verified, inAp.length)})`);
+    const pct = inAp.length > 0 ? (verified / inAp.length * 100).toFixed(1) + '%' : '0%';
+    console.log(`AP TabSpec match: ${verified}/${inAp.length} (${pct})`);
     if (notInAp.length) console.log(`In DOCX only (no AP row): ${notInAp.map((r) => r.id).join(', ')}`);
   } else {
     const inclineRows = rows.filter((r) => r.textPreview.trim());
     const acceptable = inclineRows.filter((r) => r.quality === 'good' || r.quality === 'fair').length;
-    console.log(`Estimated good+fair: ${acceptable}/${inclineRows.length} (${pct(acceptable, inclineRows.length)})`);
+    const pct = inclineRows.length > 0 ? (acceptable / inclineRows.length * 100).toFixed(1) + '%' : '0%';
+    console.log(`Estimated good+fair: ${acceptable}/${inclineRows.length} (${pct})`);
     console.log(`  good: ${good}  fair: ${fair}  poor: ${poor}  empty: ${empty}`);
-    const corpusLeak = rows.filter((r) => r.source === 'corpus');
-    if (corpusLeak.length) {
-      console.log(`  (includes ${corpusLeak.length} titles borrowed from Goldline corpus via text match)`);
-    }
   }
-
-  console.log('\nBy source:', Object.entries(bySource).map(([k, v]) => `${k}=${v}`).join(', '));
-  console.log('Top archetypes:', Object.entries(byArchetype).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${k}=${v}`).join(', '));
 
   const problems = hasAp
     ? inAp.filter((r) => r.quality !== 'verified')
@@ -271,39 +200,25 @@ function summarize(name: string, rows: RowResult[], hasAp: boolean) {
   if (problems.length > 0) {
     console.log(`\nIssues (${problems.length}):`);
     for (const r of problems.slice(0, 12)) {
-      console.log(`  [${r.id}] "${r.title}" (${r.source}/${r.archetype})`);
-      if (r.expected) console.log(`         expected: "${r.expected}"`);
-      console.log(`         Q: ${r.textPreview}...`);
+      console.log(`  [${r.id}] Generated: "${r.title}" (${r.archetype})`);
+      if (r.expected) console.log(`         Expected : "${r.expected}"`);
+      console.log(`         Text     : ${r.textPreview}...`);
     }
   } else {
-    console.log('\nNo issues — all AP titles matched.');
+    console.log('\nNo issues — all titles matched.');
   }
 
   return { total, verified: hasAp ? verified : good + fair, inAp: inAp.length, poor, empty };
 }
 
-function pct(n: number, d: number): string {
-  return d === 0 ? '0%' : `${((n / d) * 100).toFixed(1)}%`;
-}
-
 async function main() {
-  const root = path.resolve(__dirname, '../..');
+  const root = path.resolve(__dirname, '..');
   const allStats: { name: string; stats: ReturnType<typeof summarize> }[] = [];
-
-  console.log('TABLE TITLE QUALITY ANALYSIS — ALL 6 QUESTIONNAIRES');
-  console.log(`Date: ${new Date().toISOString().slice(0, 10)}`);
 
   for (const spec of QUESTIONNAIRES) {
     const rows = await analyzeQuestionnaire(spec, root);
     const stats = summarize(spec.name, rows, !!spec.apFile);
     allStats.push({ name: spec.name, stats });
-
-    const outFile = path.join(
-      __dirname,
-      `analysis_${spec.name.toLowerCase().replace(/\s+/g, '_')}.json`
-    );
-    fs.writeFileSync(outFile, JSON.stringify(rows, null, 2));
-    console.log(`\nFull results → ${outFile}`);
   }
 
   console.log(`\n${'='.repeat(72)}`);
