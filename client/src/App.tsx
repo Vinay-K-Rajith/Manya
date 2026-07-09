@@ -312,7 +312,7 @@ export default function App() {
               </div>
               
               <div className="upload-subtext">
-                Drop files here. 1 GB maximum file size or <span onClick={triggerFileSelect}>Browse file</span>
+                Drop files here. 5 MB maximum file size or <span onClick={triggerFileSelect}>Browse file</span>
               </div>
             </div>
           </div>
