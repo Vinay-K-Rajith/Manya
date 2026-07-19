@@ -1,8 +1,30 @@
-// @ts-nocheck
-/* Notation-agnostic questionnaire segmenter (prototype).
+/* Notation-agnostic questionnaire segmenter.
  * docx -> blocks: { id, text, heading, section, routingRaw, coding, options:[{text,code}] } */
-const mammoth = require('mammoth');
-const cheerio = require('cheerio');
+import * as mammoth from 'mammoth';
+import * as cheerio from 'cheerio';
+
+export interface BlockOption {
+  text: string;
+  code: string;
+}
+
+/** One question recovered from the document, before titles/filters are derived. */
+export interface Block {
+  id: string;
+  text: string;
+  section: string;
+  heading: string;
+  routingRaw: string;
+  /** Positional "ASK SECTION A-E TO THOSE ..." directive in force for this block. */
+  sectionRouting: string;
+  coding: CodingType;
+  options: BlockOption[];
+}
+
+export type CodingType = 'open' | 'ranking' | 'multiple' | 'single' | 'grid' | 'numeric' | '';
+
+/** Either a .docx buffer or a path to one. */
+export type SegmentInput = Buffer | string;
 
 // Question-ID at line start. Tolerates:
 //   - internal space in the ID: "MQ 2a", "RQ 5"
@@ -11,7 +33,7 @@ const cheerio = require('cheerio');
 const Q_RE = /^\s*([A-Z]{1,4})\s?(\d+[a-zA-Z]?)(?:[.):]\s+|\s+(?=[A-Z][a-z]))(.+)/;
 // DP / derived-variable artifacts that look like questions but aren't
 const NOT_A_QUESTION = /^(variable|var\b|derived|net\b|taw\b|tub\b|tom\b)\b|=/i;
-function matchQ(line) {
+function matchQ(line: string): { id: string; body: string } | null {
   const m = line.match(Q_RE);
   if (!m) return null;
   const body = m[3];
@@ -27,7 +49,7 @@ const ROUTING_RE = /\b(ASK ALL|ASK (?:THOSE|IF|FOR|ONLY|PAST)[^.\n]*|SHOW[^.\n]*
 const CODING_LINE_RE = /^\s*(SINGLE|MULTIPLE|MULTI|OPEN[\s-]?END(ED)?|RECORD VERBATIM|RANKING|GRID|NUMERIC)\b/i;
 
 // coding notations -> canonical type
-function detectCoding(text) {
+function detectCoding(text: string): CodingType {
   const s = text.toUpperCase();
   if (/\[OE\]|\bOPEN[\s-]?END|RECORD VERBATIM|\(OPEN-?ENDED\)/.test(s)) return 'open';
   if (/\[RANK|RANKING|RANK\s*[–-]?\s*TOP/.test(s)) return 'ranking';
@@ -38,14 +60,17 @@ function detectCoding(text) {
   return '';
 }
 
-async function segment(input) {
+/** An ordered paragraph or table, flattened out of the converted HTML. */
+type Item = { type: 'text'; text: string } | { type: 'table'; rows: string[][] };
+
+export async function segment(input: SegmentInput): Promise<Block[]> {
   const arg = Buffer.isBuffer(input) ? { buffer: input } : { path: input };
   const { value: html } = await mammoth.convertToHtml(arg);
   const $ = cheerio.load(html);
   const els = $('body').children().toArray();
 
   // flatten to ordered items
-  const items = [];
+  const items: Item[] = [];
   for (const el of els) {
     const tag = el.tagName.toLowerCase();
     if (tag === 'table') {
@@ -60,13 +85,13 @@ async function segment(input) {
     }
   }
 
-  const blocks = [];
-  let pending = [];        // recent non-question text lines (routing/coding/headings)
+  const blocks: Block[] = [];
+  let pending: string[] = [];   // recent non-question text lines (routing/coding/headings)
   let section = '';
-  let sectionRouting = ''; // positional section-base ("ASK THOSE <cond>"), inherited by questions
-  let cur = null;          // current question block awaiting its options table
+  let sectionRouting = '';      // positional section-base ("ASK THOSE <cond>"), inherited by questions
+  let cur: Block | null = null; // current question block awaiting its options table
 
-  const flushOptionsFrom = (rows) => {
+  const flushOptionsFrom = (rows: string[][]): void => {
     if (!cur || cur.options.length) return;
     for (const r of rows) {
       const cells = r.filter((c, i) => i === 0 || c !== r[i - 1]); // dedup merged
@@ -135,4 +160,4 @@ async function segment(input) {
   return blocks;
 }
 
-module.exports = { segment };
+

@@ -1,22 +1,43 @@
-// @ts-nocheck
 // Adapter: questionnaire buffer -> AP rows in the server/client response shape.
-const { segment } = require('./segment');
-const { makeTitle } = require('./titleEngine');
-const { buildFilter } = require('./filterEngine');
+import { segment, SegmentInput, BlockOption, CodingType } from './segment';
+import { makeTitle } from './titleEngine';
+import { buildFilter, OptionResolver } from './filterEngine';
+
+/** One row of the parsed-questions payload returned by /api/parse. */
+export interface APRow {
+  id: string;
+  isSection: boolean;
+  no: number;
+  heading: string;
+  text: string;
+  coding?: CodingType;
+  options: BlockOption[];
+  tableTitle: string;
+  baseTitle: string;
+  /** '' means ask-all. */
+  baseFilter: string;
+  headerTitle: string;
+  comment: string;
+  remark: string;
+}
 
 /** Build the parsed-questions payload consumed by /api/parse and the client grid. */
-async function buildAP(input) {
+export async function buildAP(input: SegmentInput): Promise<APRow[]> {
   const blocks = await segment(input);
   const byId = new Map(blocks.map((b) => [b.id, b]));
-  const resolver = (q) => {
+
+  const resolver: OptionResolver = (q) => {
     const b = byId.get(q);
     if (!b) return null;
-    return { codes: new Set(b.options.map((o) => o.code).filter(Boolean)), texts: b.options.map((o) => o.text) };
+    return {
+      codes: new Set(b.options.map((o) => o.code).filter(Boolean)),
+      texts: b.options.map((o) => o.text),
+    };
   };
 
-  const questions = [];
+  const questions: APRow[] = [];
   let seq = 0;
-  let lastSection = null;
+  let lastSection: string | null = null;
 
   for (const b of blocks) {
     if (b.section && b.section !== lastSection) {
@@ -48,5 +69,3 @@ async function buildAP(input) {
   }
   return questions;
 }
-
-module.exports = { buildAP };

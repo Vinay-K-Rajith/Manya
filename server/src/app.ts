@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { generateExcel, TabSpecRow, HeaderBanner } from './excelGen';
-const { buildAP } = require('./engine/apEngine');
+import { buildAP } from './engine/apEngine';
 
 export const app = express();
 

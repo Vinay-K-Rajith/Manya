@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Base-Filter engine — first-principles design.
  *
  * PRINCIPLE: precision over recall. A base filter is either
@@ -14,12 +13,40 @@
  *               = compound with " and " / " or ", negation "not coded"
  */
 
+/** A single parsed routing condition: [NOT] coded <codes> [for <brand>] in <q>. */
+export interface Clause {
+  neg: boolean;
+  q: string;
+  codes: string[];
+  brand: string;
+  connector?: 'and' | 'or' | null;
+}
+
+/** What the caller knows about a referenced question, used to validate codes. */
+export interface QuestionOptions {
+  codes: Set<string>;
+  texts: string[];
+}
+
+/** `null` when the referenced question does not exist. */
+export type OptionResolver = (qid: string) => QuestionOptions | null;
+
+export type FilterStatus = 'all' | 'conditional' | 'assumed' | 'review';
+
+export interface FilterResult {
+  baseTitle: string;
+  baseFilter: string;
+  status: FilterStatus;
+  refs: { q: string; codes: string[]; neg: boolean }[];
+  note?: string;
+}
+
 const QID = '[A-Z]{1,4}\\d+[A-Z]?[a-z]?';
 
 // Pull the routing/base statement out of a raw line, if present.
 // Ground truth shows the AP base-filter column carries ASK ... and SHOW ... / DO NOT SHOW ...
 // (brand-grid display bases). We capture all of them and never blank an explicit instruction.
-function extractRouting(text) {
+export function extractRouting(text: string): string {
   if (!text) return '';
   // cut coding keywords that may be glued on
   const t = text.replace(/\b(OPEN\s?END(ED)?|SINGLE CODING|MULTIPLE CODING|RANDOMIZE[D]?|GRID|TERMINATE)\b[\s\S]*$/i, '').trim();
@@ -34,7 +61,7 @@ function extractRouting(text) {
 }
 
 // Light synonym normalisation seen between questionnaire and AP: SELECTED->coded, AT->in.
-function normSynonyms(s) {
+function normSynonyms(s: string): string {
   return s.replace(/\bselected\b/gi, 'coded').replace(/\bat\b(?=\s+[A-Z]{1,4}\d)/gi, 'in');
 }
 
@@ -46,19 +73,19 @@ const CLEAN_RE = new RegExp(
 
 // ---- clause parsing ----------------------------------------------
 // A clause: [NOT] CODED <codes> [FOR <brand>] IN <QID>   (order-tolerant)
-function parseClauses(routing) {
-  const clauses = [];
+export function parseClauses(routing: string): Clause[] {
+  const clauses: Clause[] = [];
   // Protect code-list "or"/"and" BETWEEN NUMBERS (e.g. "1 or 2") so it isn't
   // mistaken for a clause connector. Loop to catch chains ("1 or 2 or 3").
   let r = routing;
-  let prev;
+  let prev: string;
   do { prev = r; r = r.replace(/(\d)\s+(?:or|and)\s+(?=\d)/gi, '$1,'); } while (r !== prev);
   // normalize connectors, keep AND/OR as delimiters
   const parts = r.split(/\b(and|or)\b/i);
-  let connector = 'and';
+  let connector: 'and' | 'or' = 'and';
   for (const seg of parts) {
     const s = seg.trim();
-    if (/^(and|or)$/i.test(s)) { connector = s.toLowerCase(); continue; }
+    if (/^(and|or)$/i.test(s)) { connector = s.toLowerCase() as 'and' | 'or'; continue; }
     const c = parseOneClause(s);
     if (c) { c.connector = clauses.length ? connector : null; clauses.push(c); }
   }
@@ -68,11 +95,13 @@ function parseClauses(routing) {
 // permissive code body: digits, ranges, quotes, and word-codes (YES/NO/text)
 const CODEBODY = `['‘’"]?[\\w][\\w,\\s'‘’"“”\\-–/&]*?`;
 
-function parseOneClause(s) {
+function parseOneClause(s: string): Clause | null {
   const neg = /\bnot\s+coded\b|\bexcept\b|\bother than\b/i.test(s);
   // codes ... in QID   OR   in QID ... codes   (order-tolerant, "for BRAND" allowed)
   let m = s.match(new RegExp(`coded\\s+(${CODEBODY})\\s+(?:for\\s+([^,]+?)\\s+)?in\\s+(${QID})`, 'i'));
-  let codesRaw, q, brand = '';
+  let codesRaw: string;
+  let q: string;
+  let brand = '';
   if (m) { codesRaw = m[1]; brand = m[2] || ''; q = m[3]; }
   else {
     m = s.match(new RegExp(`in\\s+(${QID})\\s+coded\\s+(${CODEBODY})`, 'i'));
@@ -89,8 +118,8 @@ function parseOneClause(s) {
   return { neg, q: q.toUpperCase(), codes, brand: brand.trim() };
 }
 
-function expandCodes(raw) {
-  const out = [];
+export function expandCodes(raw: string): string[] {
+  const out: string[] = [];
   const cleaned = raw.replace(/['‘’"“”]/g, '').replace(/\bto\b/gi, '-').replace(/\bor\b/gi, ',');
   for (let tok of cleaned.split(/[,\s&/]+/)) {
     tok = tok.trim();
@@ -104,7 +133,7 @@ function expandCodes(raw) {
 }
 
 // ---- rendering ---------------------------------------------------
-function renderClause(c, first) {
+function renderClause(c: Clause, first: boolean): string {
   const verb = first ? 'Ask Those' : '';
   const codeStr = c.codes.join(',');
   const brandStr = c.brand ? ` for ${c.brand}` : '';
@@ -113,12 +142,11 @@ function renderClause(c, first) {
 }
 
 /**
- * @param rawSources array of strings that MIGHT contain routing (pending lines, inline text)
- * @param resolver   (qid) => Set(codes) | null   for validation
- * @returns { baseTitle, baseFilter, status, refs:[{q,codes,neg}], note }
- *   status: 'all' | 'conditional' | 'assumed' | 'review'
+ * @param rawSources strings that MIGHT contain routing (pending lines, inline text).
+ *                   The last one that yields a routing statement wins.
+ * @param resolver   looks up a referenced question's real options, for validation.
  */
-function buildFilter(rawSources, resolver) {
+export function buildFilter(rawSources: (string | undefined)[], resolver?: OptionResolver): FilterResult {
   let routing = '';
   for (const src of rawSources) { const r = extractRouting(src || ''); if (r) routing = r; }
 
@@ -139,7 +167,7 @@ function buildFilter(rawSources, resolver) {
 
   // validate against the referenced question's REAL options.
   // resolver(q) -> null (missing) | { codes:Set<string>, texts:string[] }
-  const badRefs = [];
+  const badRefs: string[] = [];
   for (const c of clauses) {
     if (!resolver) continue;
     const real = resolver(c.q);
@@ -170,8 +198,6 @@ function buildFilter(rawSources, resolver) {
   };
 }
 
-function cleanProse(s) {
+function cleanProse(s: string): string {
   return s.replace(/\s+/g, ' ').replace(/^ask\s+/i, 'Ask ').replace(/[?.]+$/, '').trim();
 }
-
-module.exports = { buildFilter, extractRouting, parseClauses, expandCodes };

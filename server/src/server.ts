@@ -1,15 +1,17 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import express from 'express';
 import { app } from './app';
 
 const port = process.env.PORT || 3000;
 
-// Serve Frontend Static Assets in Production (local/non-Vercel deployments)
+// Local single-port mode: serve the built client alongside the API.
+// On Vercel the client is served from the CDN and this file never runs.
 const clientDistPath = path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(clientDistPath)) {
-  app.use(require('express').static(clientDistPath));
+  app.use(express.static(clientDistPath));
 
-  // Single port SPA routing
+  // SPA routing: unmatched paths fall through to index.html
   app.get('*', (req, res) => {
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });

@@ -1,8 +1,7 @@
-// @ts-nocheck
-/* Study-agnostic Table-Title + Base-Filter engine (prototype).
- * Pure JS, no models. compromise used only for noun-phrase fallback.
- * Titles: <7 words (hard cap 6). */
-const nlp = require('compromise');
+/* Study-agnostic table-title engine.
+ * Rule-based, no models. compromise is used only for the noun-phrase fallback.
+ * Titles are capped at 6 words. */
+import nlp from 'compromise';
 
 // ---------- shared helpers ----------
 const ACRONYMS = new Set(['pc', 'ott', 'ai', 'tom', 'cwe', 'nccs', 'amc', 'ro', 'uc', 'os', 'ui', 'suv', 'ac', 'mr']);
@@ -11,7 +10,10 @@ const STOP = new Set(['the','a','an','of','to','in','on','for','and','or','your'
 // Universal market-research screener/demographic aliases (present in ~every study).
 // Keyed on content regex -> canonical short title. Portable, not brand-specific.
 // Plain-language, jargon-free canonical titles for universal MR screener/demographic items.
-const UNIVERSAL_ALIASES = [
+/** [topic pattern, optional guard pattern that must also match, canonical title] */
+type AliasRule = [RegExp, RegExp | null, string];
+
+const UNIVERSAL_ALIASES: AliasRule[] = [
   [/chief wage earner|\bcwe\b/i, /educat|qualif|studied/i, 'CWE education'],
   [/chief wage earner|\bcwe\b/i, /occupation|work|profession/i, 'CWE occupation'],
   [/(code|select|record)\s+(the\s+|your\s+)?(center|centre)\b/i, null, 'City'],
@@ -36,7 +38,7 @@ const UNIVERSAL_ALIASES = [
   [/involvement in the purchase|involved.* in the purchase/i, null, 'Purchase involvement'],
   [/who all do the house cleaning|who.*does? the (house )?cleaning/i, null, 'Who does house cleaning'],
 ];
-function universalAlias(text) {
+function universalAlias(text: string): string | null {
   for (const [topic, guard, title] of UNIVERSAL_ALIASES) {
     if (topic.test(text) && (!guard || guard.test(text))) return title;
   }
@@ -45,7 +47,7 @@ function universalAlias(text) {
 
 const TRAIL_JUNK = /\b(such|possible|etc|below|above|list|given|apply|applies|now|regularly|individually|combined|response|responses|item|items|option|options|following|here|same|top|order|preference|screen|card)\b/gi;
 
-function stripNoise(raw) {
+function stripNoise(raw: string): string {
   let t = ' ' + raw + ' ';
   t = t.replace(/<[^>]*>/g, ' ');                       // pipe placeholders <...>
   t = t.replace(/[<>]/g, ' ');                          // stray pipe brackets
@@ -77,7 +79,7 @@ function stripNoise(raw) {
 }
 
 // leading conversational openers to peel off
-const OPENERS = [
+const OPENERS: RegExp[] = [
   // peel "you mentioned ... " only up to the next question word (not greedily to end)
   /^you mentioned\b[\s\S]*?(?=\b(please|what|which|how|why|where|when|give)\b)/i,
   /^(you mentioned[^,.]*[,.]\s*)/i,
@@ -98,15 +100,15 @@ const OPENERS = [
   /^(in your opinion,?\s*)/i,
   /^(thinking about[^,]*,?\s*)/i,
 ];
-function peelOpeners(t) {
-  let prev;
+function peelOpeners(t: string): string {
+  let prev: string;
   do { prev = t; for (const re of OPENERS) t = t.replace(re, '').trim(); } while (t !== prev);
   return t;
 }
 
-function words(s){ return s.split(/[\s\/]+/).filter(Boolean); }
+function words(s: string): string[] { return s.split(/[\s\/]+/).filter(Boolean); }
 
-function titleCase(s) {
+function titleCase(s: string): string {
   return words(s).map(w => {
     const low = w.toLowerCase().replace(/[^a-z0-9&\/-]/gi,'');
     if (ACRONYMS.has(low)) return low.toUpperCase();
@@ -119,7 +121,7 @@ function titleCase(s) {
 const CLAUSE_CUT = /\b(like|when|into|for this|as part of|so that|such as|including|in order to|that you|which is|to indicate|to buy|for the same)\b.*$/i;
 
 // keep meaningful head of an object phrase, drop stopwords, cap words
-function compressPhrase(phrase, cap = 6) {
+function compressPhrase(phrase: string, cap = 6): string {
   let p = phrase.replace(CLAUSE_CUT, ' ').replace(/[—–-]+\s*$/,' ').replace(/^[—–\-\s]+/,'').replace(/[?.,;:]+$/,'').trim();
   p = p.replace(/\b(a|an|the)\b/gi, ' ').replace(/\s+/g, ' ').trim();   // drop articles anywhere
   let ws = words(p);
@@ -131,7 +133,7 @@ function compressPhrase(phrase, cap = 6) {
   return ws.join(' ');
 }
 
-function finalize(s, cap = 6) {
+function finalize(s: string, cap = 6): string {
   let t = ' ' + s + ' ';
   t = t.replace(TRAIL_JUNK, ' ').replace(/\s+/g,' ').trim();
   t = compressPhrase(t, cap);
@@ -140,8 +142,11 @@ function finalize(s, cap = 6) {
 }
 
 // ---------- generic frames ----------
+/** [pattern on cleaned text, builder that turns the match into a title] */
+type FrameRule = [RegExp, (m: RegExpMatchArray) => string];
+
 // Each frame: regex on cleaned lowercase text -> builds title from captured object.
-const FRAMES = [
+const FRAMES: FrameRule[] = [
   // importance / satisfaction / awareness / familiarity / likelihood
   [/how important (?:is|are)\s+(.+)/i, (m)=>`Importance of ${obj(m[1],'while purchasing|when|to you')}`],
   [/how satisfied are you with\s+(.+)/i, (m)=>`Satisfaction with ${obj(m[1],null,3)}`],
@@ -196,22 +201,22 @@ const FRAMES = [
 ];
 
 // object cleaners --------------------------------------------------
-function obj(s, tailPatt, cap = 6) {
+function obj(s: string | undefined, tailPatt?: string | null, cap = 6): string {
   if (!s) return '';
   let t = s;
   if (tailPatt) t = t.replace(new RegExp('\\b(' + tailPatt + ')\\b.*$','i'), '');
   t = t.replace(/\b(do you|are you|to you|for you|you|while purchasing|when you|that you|in this)\b.*$/i,'');
   return finalize(peelOpeners(t), cap);
 }
-function reasonObj(s){
+function reasonObj(s: string): string {
   let t = s.replace(/^(for|behind|that|why|to)\s+/i,'');
   t = t.replace(/\b(you|your|customers|people)\b/gi,' ');
   t = t.replace(/\b(most recently|most recent|recently)\s+(purchased|bought)?\b/gi,' '); // drop recency filler
   t = t.replace(/\bmay\b/gi,' ');
   return finalize(t, 3);
 }
-function verbObj(s){ return finalize(peelOpeners(s), 5); }
-function verbObjNoun(s){
+function verbObj(s: string): string { return finalize(peelOpeners(s), 5); }
+function verbObjNoun(s: string): string {
   // "purchase your most frequently used smartphone" -> "smartphone purchase"
   const doc = nlp(peelOpeners(s));
   const verb = doc.verbs().toInfinitive().out('array')[0];
@@ -219,15 +224,15 @@ function verbObjNoun(s){
   if (verb && noun) return finalize(`${noun} ${verb}`, 4);
   return finalize(s, 4);
 }
-function usageTitle(objPhrase, verb){
+function usageTitle(objPhrase: string, verb: string): string {
   const o = obj(objPhrase);
-  const map = { use:'used', own:'owned', buy:'bought', purchase:'purchased', watch:'watched', have:'used', follow:'followed' };
+  const map: Record<string, string> = { use:'used', own:'owned', buy:'bought', purchase:'purchased', watch:'watched', have:'used', follow:'followed' };
   return finalize(`${o} ${map[verb.toLowerCase()]||verb}`, 5);
 }
 
 // Brand-funnel family: questions about brands collapse to the category noun
 // ("drain cleaners") unless we keep the ACTION. Fires only for brand questions.
-const BRAND_FRAMES = [
+const BRAND_FRAMES: [RegExp, string][] = [
   [/\bany other brand|other brands?\b.*\b(mind|think|recall|consider)\b/i, 'Other brands recalled'],
   [/\b(come to mind|top of mind|think of|recall)\b/i, 'Top of mind brands'],
   [/\b(heard of|aware of|awareness)\b/i, 'Brands heard of'],
@@ -242,13 +247,13 @@ const BRAND_FRAMES = [
   [/\bswitch/i, 'Brand switching'],
   [/\bpurchased?\b|\bbought\b|\bbuy\b/i, 'Brands purchased'],
 ];
-function brandTitle(t) {
+function brandTitle(t: string): string | null {
   if (!/\bbrands?\b/i.test(t)) return null;      // only for brand questions
   for (const [re, title] of BRAND_FRAMES) if (re.test(t)) return title;
   return null;
 }
 
-function frameTitle(t) {
+function frameTitle(t: string): string | null {
   for (const [re, fn] of FRAMES) {
     const m = t.match(re);
     if (m) { const out = fn(m); if (out && out.trim()) return out.trim(); }
@@ -263,7 +268,7 @@ const STEM = new Set(['what','which','how','why','where','when','who','whom','wh
   'do','did','does','are','is','was','were','would','could','should','shall','will','can','may','might',
   'have','has','had','to','you','we','they','i','he','she','it','your','our','their','the','a','an',
   'of','for','about','please','kindly','so','and','then','also','us','me','tell','let','know','from','list','below']);
-function peelStem(s) {
+function peelStem(s: string): string {
   let ws = s.split(/\s+/).filter(Boolean);
   while (ws.length > 3 && STEM.has(ws[0].toLowerCase().replace(/[^a-z]/g,''))) ws.shift();
   return ws.join(' ');
@@ -272,7 +277,7 @@ function peelStem(s) {
 // Fuller fallback: a clean, readable, COMPLETE phrase from the question (not a 1-word noun
 // dump, and never a mid-sentence truncation). Caps at 10 words; trims dangling stopwords so
 // the title never ends on "to", "of", "your", etc.
-function fullPhrase(t) {
+function fullPhrase(t: string): string {
   let s = peelStem(peelOpeners(t)).replace(/\b(a|an|the)\b/gi, ' ').replace(/\s+/g, ' ').trim();
   let ws = s.split(' ').filter(Boolean);
   if (ws.length > 10) ws = ws.slice(0, 10);
@@ -282,17 +287,18 @@ function fullPhrase(t) {
 }
 
 // noun-phrase fallback (kept for the frame objects); fuller phrase when it would be too terse.
-function nounFallback(t) {
+function nounFallback(t: string): string {
   const doc = nlp(peelOpeners(t));
-  let np = doc.match('#Adjective? #Noun+').out('array');
+  let np: string[] = doc.match('#Adjective? #Noun+').out('array');
   if (!np.length) np = doc.nouns().out('array');
-  let phrase = np.sort((a,b)=>b.length-a.length)[0] || t;
+  // longest noun phrase is the most specific one
+  const phrase = np.sort((a, b) => b.length - a.length)[0] || t;
   const short = finalize(phrase, 6);
   // if the noun phrase collapses to 1-2 words, prefer the fuller readable phrase
   return short.split(' ').filter(Boolean).length >= 3 ? short : fullPhrase(t);
 }
 
-function makeTitle(rawText, heading) {
+export function makeTitle(rawText: string, heading?: string): string {
   const alias = universalAlias(rawText || '');
   if (alias) return alias;
   const cleaned = peelOpeners(stripNoise(rawText || ''));
@@ -314,24 +320,3 @@ function makeTitle(rawText, heading) {
   return title;
 }
 
-// ---------- base filter ----------
-function normalizeFilter(raw) {
-  if (!raw) return { filter: 'Ask all', assumed: true, ref: null };
-  // cut coding keywords that mammoth may glue onto the routing (e.g. "IN D3OPEN END")
-  const t = raw.replace(/\b(OPEN\s?END(ED)?|SINGLE CODING|MULTIPLE CODING|RANDOMIZE[D]?|GRID)\b.*$/i,'')
-               .replace(/\s+/g,' ').trim();
-  if (/^ask all\b/i.test(t)) return { filter: 'Ask all', assumed: false, ref: null };
-  let m = t.match(/ask (?:those )?(?:who are )?coded\s+([\d,\s\/&or]+?)\s+in\s+([A-Z]{1,4}\d+[a-z]?)/i);
-  if (m) return { filter: `Ask those coded ${codes(m[1])} in ${m[2].toUpperCase()}`, assumed: false,
-                   ref: { q: m[2].toUpperCase(), codes: codeList(m[1]) } };
-  m = t.match(/ask if (?:coded )?([\d,\s\/&or]+?)\s+in\s+([A-Z]{1,4}\d+[a-z]?)/i);
-  if (m) return { filter: `Ask if coded ${codes(m[1])} in ${m[2].toUpperCase()}`, assumed:false,
-                  ref:{ q:m[2].toUpperCase(), codes:codeList(m[1]) } };
-  if (/^ask /i.test(t)) return { filter: cap(t), assumed:false, ref:null, manual:true };
-  return { filter: 'Ask all', assumed: true, ref: null };
-}
-function codes(s){ return s.replace(/\bor\b/gi,',').replace(/[^\d,\/&]/g,'').replace(/,+/g,',').replace(/^,|,$/g,''); }
-function codeList(s){ return codes(s).split(/[,\/&]/).filter(Boolean); }
-function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase(); }
-
-module.exports = { makeTitle, normalizeFilter, stripNoise };
