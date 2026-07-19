@@ -11,5 +11,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  // Netlify entrypoint from an earlier deploy attempt. Deployment is on Vercel via
+  // api/index.ts, and this file's serverless-http dependency is not installed.
+  "exclude": ["src/netlify-function.ts"]
 }

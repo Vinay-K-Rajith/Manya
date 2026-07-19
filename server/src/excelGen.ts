@@ -22,25 +22,18 @@ export interface HeaderBanner {
 }
 
 export async function generateExcel(
-  templateDir: string, // unused now, but kept for signature compatibility
   tabSpecData: TabSpecRow[],
-  banners: HeaderBanner[],
-  templateName?: string // unused now
+  banners: HeaderBanner[]
 ): Promise<Buffer> {
-  // Create a brand new pristine workbook
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'AP Analyzer API';
   workbook.created = new Date();
 
-  // Create only the required sheets
   const tabSpecSheet = workbook.addWorksheet('TabSpec', { views: [{ showGridLines: false }] });
   const headerSheet = workbook.addWorksheet('Header', { views: [{ showGridLines: false }] });
 
-  // =========================================================================
-  // --- Write TabSpec Sheet ---
-  // =========================================================================
-  
-  // Create Header Row (Row 1)
+  // --- TabSpec sheet ---
+
   const headerRow = tabSpecSheet.getRow(1);
   headerRow.values = ['No.', 'Question No', 'Table Title', 'Base Title', 'Base Filter', 'Header Title', 'Comment', 'Remark'];
   headerRow.height = 25;
@@ -62,7 +55,8 @@ export async function generateExcel(
     row.height = 20;
 
     if (item.isSection) {
-      // Apply borders to all columns first (before merge) to prevent exceljs crashes
+      // Borders must be applied before the merge below; exceljs crashes if the
+      // merged range is styled afterwards.
       for (let col = 1; col <= 8; col++) {
         const cell = row.getCell(col);
         cell.border = {
@@ -74,13 +68,11 @@ export async function generateExcel(
       const cell = row.getCell(1);
       cell.value = item.tableTitle;
       cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF002060' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6EEF8' } }; // Soft light blue for section
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6EEF8' } };
       cell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
-      
-      // Merge columns A to H (1 to 8)
+
       tabSpecSheet.mergeCells(currentExcelRow, 1, currentExcelRow, 8);
     } else {
-      // Standard question row
       row.getCell(1).value = item.no;
       row.getCell(2).value = item.id;
       row.getCell(3).value = item.tableTitle;
@@ -90,12 +82,12 @@ export async function generateExcel(
       row.getCell(7).value = item.comment;
       row.getCell(8).value = item.remark || null;
 
-      // Alignment & style
       for (let col = 1; col <= 8; col++) {
         const cell = row.getCell(col);
         cell.font = { name: 'Calibri', size: 10 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }; // Explicit white background
-        
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+
+        // Column 3 is the table title, the only free-text column.
         if (col === 3) {
           cell.alignment = { horizontal: 'left', vertical: 'middle' };
         } else {
@@ -113,7 +105,6 @@ export async function generateExcel(
     currentExcelRow++;
   }
 
-  // Set columns widths
   tabSpecSheet.columns = [
     { key: 'no', width: 8 },
     { key: 'qNo', width: 15 },
@@ -126,18 +117,16 @@ export async function generateExcel(
   ];
 
 
-  // =========================================================================
-  // --- Write Header Sheet ---
-  // =========================================================================
-  
-  // Row mappings:
-  // Row 1: Column No. (#1, #2, #3...)
-  // Row 2: Header (Total, Center, Zone...)
-  // Row 3: Description (All India, Mumbai...)
-  // Row 4: Question No. (Total, RQ1...)
-  // Row 5: Codes (Code 1, Code 2...)
-  // Row 6: Sig letters (a, b, c...)
-  
+  // --- Header sheet ---
+  //
+  // Six fixed rows, one column per banner option:
+  //   1 Column No.   (#1, #2, #3...)
+  //   2 Header       (Total, Center, Zone...)
+  //   3 Description  (All India, Mumbai...)
+  //   4 Question No. (Total, RQ1...)
+  //   5 Code         (Code 1, Code 2...)
+  //   6 Sig letters  (a, b, c...)
+
   const row1 = headerSheet.getRow(1);
   const row2 = headerSheet.getRow(2);
   const row3 = headerSheet.getRow(3);
@@ -145,7 +134,7 @@ export async function generateExcel(
   const row5 = headerSheet.getRow(5);
   const row6 = headerSheet.getRow(6);
   
-  // Row Labels (Column A)
+  // Column A holds the row labels.
   row1.getCell(1).value = 'Column No.';
   row2.getCell(1).value = 'Header';
   row3.getCell(1).value = 'Description';
@@ -153,7 +142,7 @@ export async function generateExcel(
   row5.getCell(1).value = 'Code';
   row6.getCell(1).value = 'Sig letters';
 
-  // Total Column (Column B / Column index 2)
+  // Column B is always the Total column; banner options start at column C.
   row1.getCell(2).value = '#1';
   row2.getCell(2).value = 'Total';
   row3.getCell(2).value = 'Total';
@@ -162,34 +151,33 @@ export async function generateExcel(
   row6.getCell(2).value = '';
 
   let colIdx = 3;
-  let sigAlphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+  const sigAlphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
   let sigCharIdx = 0;
 
   for (const banner of banners) {
     const opts = banner.options;
     if (opts.length === 0) continue;
-    
+
     const startCol = colIdx;
     const endCol = colIdx + opts.length - 1;
 
-    // Populate option columns
     for (let oIdx = 0; oIdx < opts.length; oIdx++) {
       const opt = opts[oIdx];
       const currentCol = colIdx + oIdx;
-      
+
       row1.getCell(currentCol).value = `#${currentCol - 1}`;
-      row2.getCell(currentCol).value = banner.tableTitle; // Header title (will be merged)
-      row3.getCell(currentCol).value = opt.text; // Description
-      row4.getCell(currentCol).value = banner.id; // Question No (will be merged)
-      row5.getCell(currentCol).value = `Code ${opt.code}`; // Code instruction
-      
-      // Assign Sig Letter
+      row2.getCell(currentCol).value = banner.tableTitle;
+      row3.getCell(currentCol).value = opt.text;
+      row4.getCell(currentCol).value = banner.id;
+      row5.getCell(currentCol).value = `Code ${opt.code}`;
+
+      // Sig letters run continuously across all banners, not per banner.
       const letter = sigAlphabet[sigCharIdx % sigAlphabet.length];
       row6.getCell(currentCol).value = letter.toUpperCase();
       sigCharIdx++;
     }
 
-    // Merge columns for Header Title (Row 2) and Question No (Row 4)
+    // The title and question-no rows span the banner's whole option range.
     if (opts.length > 1) {
       headerSheet.mergeCells(2, startCol, 2, endCol);
       headerSheet.mergeCells(4, startCol, 4, endCol);
@@ -198,7 +186,6 @@ export async function generateExcel(
     colIdx += opts.length;
   }
 
-  // Set styling for Header sheet cells
   const headerBorder = {
     top: { style: 'thin' as const, color: { argb: 'FFC0C0C0' } },
     bottom: { style: 'thin' as const, color: { argb: 'FFC0C0C0' } },
@@ -212,38 +199,26 @@ export async function generateExcel(
     
     for (let c = 1; c < colIdx; c++) {
       const cell = row.getCell(c);
-      
-      // Fonts
-      if (c === 1 || r === 1 || r === 2 || r === 4) {
-        cell.font = { name: 'Arial', size: 10, bold: true };
-      } else {
-        cell.font = { name: 'Arial', size: 10 };
-      }
 
-      // Alignments
-      if (c === 1) {
-        cell.alignment = { horizontal: 'left', vertical: 'middle' };
-      } else {
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      }
+      // Labels, column numbers, titles and question numbers are bold.
+      const bold = c === 1 || r === 1 || r === 2 || r === 4;
+      cell.font = { name: 'Arial', size: 10, bold };
 
-      // Fills
-      if (r === 6) {
-        // Yellow fill for Sig Letters row
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFA0' } };
-      } else if (c === 1) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
-      } else {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }; // Explicit white background
-      }
+      cell.alignment = c === 1
+        ? { horizontal: 'left', vertical: 'middle' }
+        : { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+      let fillColor = 'FFFFFFFF';
+      if (r === 6) fillColor = 'FFFFFFA0';       // sig letters row
+      else if (c === 1) fillColor = 'FFF2F2F2';  // label column
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
 
       cell.border = headerBorder;
     }
   }
 
-  // Set column widths
-  headerSheet.getColumn(1).width = 15; // Labels column
-  headerSheet.getColumn(2).width = 12; // Total column
+  headerSheet.getColumn(1).width = 15; // labels
+  headerSheet.getColumn(2).width = 12; // Total
   for (let c = 3; c < colIdx; c++) {
     headerSheet.getColumn(c).width = 15;
   }

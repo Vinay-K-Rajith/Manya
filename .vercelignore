@@ -1,7 +1,10 @@
 *.docx
 *.xlsx
+*.xlsb
+*.xlsm
+New/
 server/dist
 client/dist
 server/src/data
 server/src/*.json
-plan.md
+server/src/*.html

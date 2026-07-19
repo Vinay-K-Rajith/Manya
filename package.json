@@ -11,7 +11,11 @@
     "build:server": "npm run build -w server",
     "build": "npm run build:client && npm run build:server",
     "start": "node server/dist/server.js",
+    "dev": "concurrently -n server,client -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "npm run dev -w server",
     "dev:client": "npm run dev -w client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   }
 }

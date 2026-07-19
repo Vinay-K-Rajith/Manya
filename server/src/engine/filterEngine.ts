@@ -69,7 +69,7 @@ function parseClauses(routing) {
 const CODEBODY = `['‘’"]?[\\w][\\w,\\s'‘’"“”\\-–/&]*?`;
 
 function parseOneClause(s) {
-  const neg = /\\bnot\\s+coded\\b|\\bexcept\\b|\\bother than\\b/i.test(s);
+  const neg = /\bnot\s+coded\b|\bexcept\b|\bother than\b/i.test(s);
   // codes ... in QID   OR   in QID ... codes   (order-tolerant, "for BRAND" allowed)
   let m = s.match(new RegExp(`coded\\s+(${CODEBODY})\\s+(?:for\\s+([^,]+?)\\s+)?in\\s+(${QID})`, 'i'));
   let codesRaw, q, brand = '';
@@ -91,13 +91,13 @@ function parseOneClause(s) {
 
 function expandCodes(raw) {
   const out = [];
-  const cleaned = raw.replace(/['‘’"“”]/g, '').replace(/\\bto\\b/gi, '-').replace(/\\bor\\b/gi, ',');
-  for (let tok of cleaned.split(/[,\\s&/]+/)) {
+  const cleaned = raw.replace(/['‘’"“”]/g, '').replace(/\bto\b/gi, '-').replace(/\bor\b/gi, ',');
+  for (let tok of cleaned.split(/[,\s&/]+/)) {
     tok = tok.trim();
     if (!tok) continue;
-    const range = tok.match(/^(\\d+)\\s*[-–]\\s*(\\d+)$/);
+    const range = tok.match(/^(\d+)\s*[-–]\s*(\d+)$/);
     if (range) { for (let n = +range[1]; n <= +range[2]; n++) out.push(String(n)); }
-    else if (/^\\d+$/.test(tok)) out.push(tok);
+    else if (/^\d+$/.test(tok)) out.push(tok);
     else if (/^(yes|no)$/i.test(tok)) out.push(tok.charAt(0).toUpperCase() + tok.slice(1).toLowerCase()); // word-code
   }
   return [...new Set(out)];

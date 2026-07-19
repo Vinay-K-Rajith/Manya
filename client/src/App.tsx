@@ -35,20 +35,21 @@ export default function App() {
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [selectedQuestionIdx, setSelectedQuestionIdx] = useState<number | null>(null);
   
-  // Sandbox state
   const [sandboxText, setSandboxText] = useState<string>(
     `RQ7. What is the highest level of education of the chief wage earner?\nASK ALL\nSINGLE CODING\n\nRQ12. Which precious metals did you buy in the last 12 months?\nMULTIPLE CODING, RANDOMIZE`
   );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Guess banner questions automatically upon loading
+  // Seed the two grid checkboxes once per upload: everything is included in the AP,
+  // and demographics are pre-ticked as banners since they are the usual cross-tabs.
+  // Keyed on length so it re-runs on a new file but not on every cell edit; the
+  // undefined checks below preserve any choice the user has already made.
   useEffect(() => {
     if (questions.length > 0) {
-      setQuestions(prev => 
+      setQuestions(prev =>
         prev.map(q => {
           if (q.isSection) return q;
-          // Auto-select demographic questions as banners (like RQ1, RQ4, RQ5A, RQ7, RQ7a, NCCS)
           const lowerId = q.id.toLowerCase();
           const lowerTitle = q.tableTitle.toLowerCase();
           const isDemographic = 
@@ -75,7 +76,6 @@ export default function App() {
     }
   }, [questions.length]);
 
-  // --- Handlers for upload ---
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -139,7 +139,6 @@ export default function App() {
     }
   };
 
-  // --- Grid inline updates ---
   const updateQuestionField = (idx: number, field: keyof Question, value: any) => {
     setQuestions(prev => {
       const updated = [...prev];
@@ -148,13 +147,12 @@ export default function App() {
     });
   };
 
-  // --- Generate Excel handler ---
   const handleGenerateExcel = async () => {
     if (questions.length === 0) return;
 
     setLoading(true);
 
-    // Format TabSpec data: Filter out questions not included, map fields
+    // Section rows are always exported; question rows only if ticked.
     const tabSpecRows = questions
       .filter(q => q.includeInTabSpec || q.isSection)
       .map((q) => ({
@@ -169,7 +167,7 @@ export default function App() {
         isSection: q.isSection || false
       }));
 
-    // Format Header banner data: filter questions selected as banners
+    // A banner needs options to become cross-tab columns, so optionless ones are dropped.
     const bannerRows = questions
       .filter(q => q.useAsBanner && !q.isSection && q.options && q.options.length > 0)
       .map(q => ({
@@ -182,20 +180,13 @@ export default function App() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tabSpec: tabSpecRows,
-          banners: bannerRows,
-          templateName: fileName.toLowerCase().includes('retailer') 
-            ? 'AP FOR GOLDLINE RETAILER 1.xlsx' 
-            : 'AP FOR GOLDLINE CONSUMER.xlsx'
-        })
+        body: JSON.stringify({ tabSpec: tabSpecRows, banners: bannerRows })
       });
 
       if (!res.ok) {
         throw new Error(await res.text());
       }
 
-      // Stream download
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -213,7 +204,8 @@ export default function App() {
     }
   };
 
-  // --- Regex Sandbox Parser logic (simulated on client) ---
+  // Mirrors the server's detection rules so the sandbox tab can preview matches
+  // without a round trip. Kept deliberately simple; it is a teaching aid, not the parser.
   const parseSandboxText = () => {
     const lines = sandboxText.split('\n');
     const results: string[] = [];
@@ -247,7 +239,6 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Header Bar */}
       <header className="app-header">
         <div className="brand-section">
           <div className="logo-badge">AP</div>
@@ -270,7 +261,6 @@ export default function App() {
         </nav>
       </header>
 
-      {/* Main View Area */}
       {activeTab === 'converter' ? (
         questions.length === 0 ? (
           /* File Upload Landing Page */
@@ -298,9 +288,7 @@ export default function App() {
               <div className="btn-upload-group" onClick={triggerFileSelect}>
                 <button className="btn-primary-upload">Choose Files</button>
                 <div className="upload-icons">
-                  {/* Inline folder SVG */}
                   <svg className="upload-icon-svg" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-                  {/* Inline cloud drive SVG */}
                   <svg className="upload-icon-svg" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 3 0 1.65-1.35 3-3 3z"/></svg>
                 </div>
               </div>
@@ -320,7 +308,6 @@ export default function App() {
           /* Questionnaire Interactive Editor */
           <div className="editor-workspace">
             <div className="editor-main">
-              {/* Toolbar */}
               <div className="editor-toolbar">
                 <div className="toolbar-info">
                   <span>File:</span>
@@ -339,7 +326,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Data Grid Table */}
               <div className="table-container">
                 <table className="data-table">
                   <thead>
@@ -379,7 +365,6 @@ export default function App() {
                       
                       return (
                         <tr key={`q-${idx}`} className="row-question">
-                          {/* Include in TabSpec check */}
                           <td style={{ textAlign: 'center' }}>
                             <label className="custom-checkbox">
                               <input 
@@ -390,7 +375,6 @@ export default function App() {
                               <span className="checkmark"></span>
                             </label>
                           </td>
-                          {/* Use as Banner check */}
                           <td style={{ textAlign: 'center' }}>
                             <label className="custom-checkbox">
                               <input 
@@ -401,11 +385,9 @@ export default function App() {
                               <span className="checkmark"></span>
                             </label>
                           </td>
-                          {/* Sequence Number */}
                           <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
                             {q.no}
                           </td>
-                          {/* ID (e.g. RQ1) */}
                           <td>
                             <input 
                               type="text" 
@@ -414,7 +396,6 @@ export default function App() {
                               onChange={(e) => updateQuestionField(idx, 'id', e.target.value)}
                             />
                           </td>
-                          {/* Table Title */}
                           <td>
                             <input 
                               type="text" 
@@ -423,7 +404,6 @@ export default function App() {
                               onChange={(e) => updateQuestionField(idx, 'tableTitle', e.target.value)}
                             />
                           </td>
-                          {/* Base (Ask All) */}
                           <td>
                             <input 
                               type="text" 
@@ -432,7 +412,6 @@ export default function App() {
                               onChange={(e) => updateQuestionField(idx, 'baseTitle', e.target.value)}
                             />
                           </td>
-                          {/* Base Filter */}
                           <td>
                             <input 
                               type="text" 
@@ -442,7 +421,6 @@ export default function App() {
                               onChange={(e) => updateQuestionField(idx, 'baseFilter', e.target.value)}
                             />
                           </td>
-                          {/* Metric Dropdown */}
                           <td>
                             <select 
                               className="grid-select-type"
@@ -455,7 +433,6 @@ export default function App() {
                               <option value="Sum">Sum</option>
                             </select>
                           </td>
-                          {/* Options modal triggers */}
                           <td style={{ display: 'flex', justifyContent: 'center' }}>
                             <button className="btn-options-toggle" onClick={() => setSelectedQuestionIdx(idx)}>
                               <span>View</span> 
@@ -470,7 +447,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Sidebar Controls */}
             <aside className="editor-sidebar">
               <div className="sidebar-section">
                 <div className="sidebar-title">Banners / Headers</div>
@@ -562,7 +538,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Loading Overlay Spinner */}
       {loading && (
         <div className="loading-overlay">
           <div className="spinner"></div>
@@ -570,7 +545,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Options Editing Modal Dialog */}
       {selectedQuestionIdx !== null && (
         <div className="modal-overlay">
           <div className="modal-content">

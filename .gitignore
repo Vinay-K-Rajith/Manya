@@ -7,13 +7,30 @@ client/dist/
 .vercel
 .claude/
 
+# Build/deploy output
+deploy/
+deploy.zip
+
 # Reference/source documents (not needed by the app)
 *.docx
 *.xlsx
 *.xls
 *.pdf
 
-# Generated analysis artifacts
-server/src/data/
+# Local analysis scratch output
 server/src/*.json
 server/src/*.html
+server/src/data/
+
+# Netlify deploy attempt, superseded by Vercel (api/index.ts)
+build.js
+server/src/netlify-function.ts
+
+# npm workspace: the root lockfile is authoritative
+client/package-lock.json
+server/package-lock.json
+
+# Client deliverables / reference data (binary Excel too)
+*.xlsb
+*.xlsm
+New/
